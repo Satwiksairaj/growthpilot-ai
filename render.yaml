@@ -1,9 +1,3 @@
-envVarGroups:
-  - name: growthpilot-ai-n8n-auth
-    envVars:
-      - key: N8N_WEBHOOK_SECRET
-        generateValue: true
-
 services:
   - type: web
     name: growthpilot-ai-api-satwiksairaj
@@ -16,8 +10,6 @@ services:
       name: growthpilot-ai-api-data
       mountPath: /var/lib/growthpilot
       sizeGB: 1
-    envVarGroups:
-      - growthpilot-ai-n8n-auth
     envVars:
       - key: GROWTHPILOT_DB_PATH
         value: /var/lib/growthpilot/growthpilot.db
@@ -28,6 +20,11 @@ services:
           type: web
           name: growthpilot-ai-n8n-satwiksairaj
           property: host
+      - key: N8N_WEBHOOK_SECRET
+        fromService:
+          type: web
+          name: growthpilot-ai-n8n-satwiksairaj
+          envVarKey: N8N_WEBHOOK_SECRET
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
@@ -44,10 +41,10 @@ services:
       name: growthpilot-ai-n8n-data
       mountPath: /home/node/.n8n
       sizeGB: 1
-    envVarGroups:
-      - growthpilot-ai-n8n-auth
     envVars:
       - key: N8N_ENCRYPTION_KEY
+        generateValue: true
+      - key: N8N_WEBHOOK_SECRET
         generateValue: true
       - key: N8N_DIAGNOSTICS_ENABLED
         value: "false"
