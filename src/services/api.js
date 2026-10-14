@@ -1,4 +1,7 @@
-const BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
+const configuredOrigin = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, '')
+const BASE = configuredOrigin
+  ? `${/^[a-z][a-z\d+.-]*:\/\//i.test(configuredOrigin) ? configuredOrigin : `https://${configuredOrigin}`}${configuredOrigin.endsWith('/api') ? '' : '/api'}`
+  : '/api'
 
 async function requestJSON(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {

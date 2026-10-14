@@ -226,7 +226,11 @@ app = FastAPI(
 )
 
 allowed_origins = [
-    origin.strip()
+    (
+        origin.strip().rstrip("/")
+        if origin.strip().startswith(("http://", "https://"))
+        else f"https://{origin.strip().rstrip('/')}"
+    )
     for origin in os.getenv(
         "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
     ).split(",")
@@ -246,6 +250,19 @@ def on_startup() -> None:
     initialize_database()
 
 
+def n8n_webhook_url() -> str | None:
+    configured_url = os.getenv("N8N_WEBHOOK_URL")
+    if configured_url:
+        return configured_url
+
+    base_url = os.getenv("N8N_BASE_URL")
+    if not base_url:
+        return None
+    if not base_url.startswith(("http://", "https://")):
+        base_url = f"https://{base_url}"
+    return f"{base_url.rstrip('/')}/webhook/growthpilot/consented-lead"
+
+
 @app.get("/api/health")
 def health() -> dict[str, object]:
     gemini = gemini_configuration()
@@ -257,7 +274,7 @@ def health() -> dict[str, object]:
             ),
             "gemini_model_configured": gemini["model_configured"],
             "n8n_configured": bool(
-                os.getenv("N8N_WEBHOOK_URL") and os.getenv("N8N_WEBHOOK_SECRET")
+                n8n_webhook_url() and os.getenv("N8N_WEBHOOK_SECRET")
             ),
             "database": "sqlite",
         },
@@ -347,7 +364,7 @@ def load_idempotent_response(
 
 
 def dispatch_n8n_event(event_id: str) -> None:
-    webhook_url = os.getenv("N8N_WEBHOOK_URL")
+    webhook_url = n8n_webhook_url()
     webhook_secret = os.getenv("N8N_WEBHOOK_SECRET")
     if not webhook_url or not webhook_secret:
         return
@@ -503,8 +520,7 @@ def create_assessment(
                         ),
                     )
                     n8n_configured = bool(
-                        os.getenv("N8N_WEBHOOK_URL")
-                        and os.getenv("N8N_WEBHOOK_SECRET")
+                        n8n_webhook_url() and os.getenv("N8N_WEBHOOK_SECRET")
                     )
                     connection.execute(
                         """

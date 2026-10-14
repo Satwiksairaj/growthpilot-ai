@@ -149,6 +149,12 @@ docker run --rm -p 8000:8000 `
 
 Supply provider and n8n secrets through the host/deployment secret manager, never as image build arguments. Configure the frontend build with `VITE_API_BASE_URL` pointing at the deployed API, set `CORS_ORIGINS` to the exact frontend origin, configure HTTPS, and provide persistent-volume backups/retention. This is deployment preparation only; hosting, HTTPS, backups, and production service operation have not been performed or verified.
 
+### Render Blueprint
+
+The root `render.yaml` defines a static frontend, a persistent API service, and a persistent n8n service. Create a Blueprint in Render from this GitHub repository and review its paid service and disk resources before confirming. Render generates the n8n encryption key and shared webhook secret; enter the Gemini API key only in Render's secret prompt, never in Git or chat. The Blueprint assumes the named frontend hostname is available.
+
+After the services are deployed, open the n8n editor, create an HTTP Header Auth credential named `GrowthPilot Shared Secret` with header `Authorization` and the generated shared secret, import `n8n/growthpilot-consented-lead.json`, select that credential on the webhook, and activate the workflow. Confirm the backend health endpoint reports n8n configured and submit a consented test lead before treating hosted automation as live. Use synthetic data until privacy, retention, access-control, and monitoring policies are approved.
+
 ## Submission materials
 
 - [Research audit](./submission/research-audit.md)

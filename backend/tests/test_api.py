@@ -46,6 +46,23 @@ class ApiTests(unittest.TestCase):
         self.assertFalse(response.json()["configuration"]["gemini_configured"])
         self.assertNotIn("GEMINI_API_KEY", json.dumps(response.json()))
 
+    def test_health_supports_render_n8n_service_reference(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "N8N_BASE_URL": "growthpilot-ai-n8n.onrender.com",
+                "N8N_WEBHOOK_SECRET": "test-webhook-secret",
+            },
+        ):
+            response = self.client.get("/api/health")
+            webhook_url = main.n8n_webhook_url()
+
+        self.assertTrue(response.json()["configuration"]["n8n_configured"])
+        self.assertEqual(
+            webhook_url,
+            "https://growthpilot-ai-n8n.onrender.com/webhook/growthpilot/consented-lead",
+        )
+
     @patch("app.main.generate_report", side_effect=rule_based_report)
     def test_assessment_returns_and_persists_rule_based_report(
         self, _generator: MagicMock

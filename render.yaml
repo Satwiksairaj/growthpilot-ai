@@ -1,0 +1,72 @@
+envVarGroups:
+  - name: growthpilot-ai-n8n-auth
+    envVars:
+      - key: N8N_WEBHOOK_SECRET
+        generateValue: true
+
+services:
+  - type: web
+    name: growthpilot-ai-api-satwiksairaj
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/health
+    disk:
+      name: growthpilot-ai-api-data
+      mountPath: /var/lib/growthpilot
+      sizeGB: 1
+    envVarGroups:
+      - growthpilot-ai-n8n-auth
+    envVars:
+      - key: GROWTHPILOT_DB_PATH
+        value: /var/lib/growthpilot/growthpilot.db
+      - key: CORS_ORIGINS
+        value: https://growthpilot-ai-web-satwiksairaj.onrender.com
+      - key: N8N_BASE_URL
+        fromService:
+          type: web
+          name: growthpilot-ai-n8n-satwiksairaj
+          property: host
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash-lite
+
+  - type: web
+    name: growthpilot-ai-n8n-satwiksairaj
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./n8n/Dockerfile
+    dockerContext: ./n8n
+    healthCheckPath: /healthz
+    disk:
+      name: growthpilot-ai-n8n-data
+      mountPath: /home/node/.n8n
+      sizeGB: 1
+    envVarGroups:
+      - growthpilot-ai-n8n-auth
+    envVars:
+      - key: N8N_ENCRYPTION_KEY
+        generateValue: true
+      - key: N8N_DIAGNOSTICS_ENABLED
+        value: "false"
+      - key: N8N_PERSONALIZATION_ENABLED
+        value: "false"
+      - key: N8N_BLOCK_ENV_ACCESS_IN_NODE
+        value: "true"
+
+  - type: static
+    name: growthpilot-ai-web-satwiksairaj
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        fromService:
+          type: web
+          name: growthpilot-ai-api-satwiksairaj
+          property: host
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
