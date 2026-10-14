@@ -151,15 +151,15 @@ Supply provider and n8n secrets through the host/deployment secret manager, neve
 
 ### Render Blueprint
 
-The root `render.yaml` defines a free API service and a free n8n service; the frontend is hosted separately on Vercel. Free Render services can sleep when idle and do not include persistent disks. Set up Supabase Postgres before creating the Render Blueprint so API records and n8n workflow state persist across service restarts.
+The root `render.yaml` defines a free API service and a free n8n service; the frontend is hosted separately on Vercel. Free Render services can sleep when idle and do not include persistent disks. The current deployment uses SQLite for both API and n8n, so their data and workflows may be lost when a service restarts or is redeployed. This temporary setup is for evaluation only, not real student or lead data.
 
-During Blueprint creation, provide the Supabase Postgres URL for `DATABASE_URL` and the Supabase pooler host/user/password for n8n's `DB_POSTGRESDB_*` variables. Use the session pooler (port 5432) for both services where available and keep n8n in its dedicated `n8n` schema. Never paste database credentials into Git, source files, or chat. Render generates the n8n encryption key and shared webhook secret. Enter the Gemini API key only in Render's secret prompt.
+To make data durable, configure Supabase Postgres before switching either service from SQLite. Provide the Supabase connection details through Render's secret manager; keep database credentials out of Git, source files, and chat. Render generates the n8n encryption key and shared webhook secret. Enter the Gemini API key only in Render's secret prompt.
 
-After the services are deployed, open the n8n editor, create an HTTP Header Auth credential named `GrowthPilot Shared Secret` with header `Authorization` and the generated shared secret, import `n8n/growthpilot-consented-lead.json`, select that credential on the webhook, and activate the workflow. The Blueprint references the generated shared secret for both API and n8n. Configure Vercel's production `VITE_API_BASE_URL` to the Render API origin, remove the frontend-only preview flag, and redeploy. Verify backend health, dashboard metrics, and a synthetic consented test lead end to end before sharing it. Free services may sleep, have usage limits, or restart; test their terms and quotas before storing real student data.
+After the services are deployed, open the n8n editor, create an HTTP Header Auth credential named `GrowthPilot Shared Secret` with header `Authorization` and the generated shared secret, import `n8n/growthpilot-consented-lead.json`, select that credential on the webhook, and activate the workflow. The Blueprint references the generated shared secret for both API and n8n. Configure Vercel's production `VITE_API_BASE_URL` to the Render API origin, remove the frontend-only preview flag, and redeploy. Verify backend health, dashboard metrics, and a synthetic consented test lead end to end before sharing it. Free services may sleep, have usage limits, or restart; do not store real student data in this temporary setup.
 
 ### Vercel frontend
 
-Vercel hosts the frontend at `https://growthpilot-ai-kohl.vercel.app`. The committed `.env.production` keeps the app in a safe frontend-only preview until the API is deployed; it displays a notice, disables assessment submission, skips visit tracking, and avoids requesting missing metrics. Remove that preview flag and configure `VITE_API_BASE_URL` in Vercel's production environment only after the API and Postgres are deployed and verified.
+Vercel hosts the frontend at `https://growthpilot-ai-kohl.vercel.app`. The committed `.env.production` keeps the app in a safe frontend-only preview until the API is connected; it displays a notice, disables assessment submission, skips visit tracking, and avoids requesting missing metrics. Remove that preview flag and configure `VITE_API_BASE_URL` in Vercel's production environment only after the API is deployed and health-checked. Use durable Postgres before collecting real data.
 
 ## Submission materials
 
@@ -173,7 +173,7 @@ Vercel hosts the frontend at `https://growthpilot-ai-kohl.vercel.app`. The commi
 - No student accounts, staff authentication/permissions, or staff lead-management UI.
 - No lead qualification rules; qualified lead and counselling counts are intentionally unavailable.
 - SQLite is for local/single-instance evaluation, not a configured multi-instance production database.
-- No hosting, production HTTPS, backup/retention policy, or operational monitoring has been set up.
+- No durable hosted database, backup/retention policy, or operational monitoring has been set up.
 - Acquisition attribution is approximate and needs a privacy-reviewed analytics policy.
 - Review applicable privacy, security, accessibility, and student-data rules before handling real student or lead information.
 - Configure and verify supported Gemini model access and n8n workflow operation in the target environment.
