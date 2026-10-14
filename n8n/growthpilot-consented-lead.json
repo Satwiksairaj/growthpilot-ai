@@ -1,0 +1,92 @@
+{
+  "name": "GrowthPilot - Consented Lead Intake",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "growthpilot/consented-lead",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "5f9fb155-2819-4b5a-8a3f-9423d3d0a1fe",
+      "name": "Authenticated Lead Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "growthpilot-consented-lead",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "GrowthPilot Shared Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const event = $json.body ?? $json;\nconst uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\nif (event.event_type !== 'consented_lead.created' || event.consent !== true) {\n  throw new Error('Rejected lead event: expected a consented lead-created event.');\n}\nif (!uuidPattern.test(event.event_id) || !uuidPattern.test(event.lead_id) || !uuidPattern.test(event.assessment_id)) {\n  throw new Error('Rejected lead event: invalid event or record identifier.');\n}\nreturn [{ json: {\n  accepted: true,\n  event_id: event.event_id,\n  task: {\n    type: 'student-lead-follow-up',\n    lead_id: event.lead_id,\n    assessment_id: event.assessment_id,\n    created_at: event.created_at,\n    status: 'ready-for-staff-review'\n  }\n} }];"
+      },
+      "id": "173d6a8b-5c0c-4ec5-bfc6-060f2b5182b4",
+      "name": "Validate Consent and Prepare Task",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "9167d5e8-90f0-46ba-97f7-79e705fc8b96",
+      "name": "Confirm Accepted Event",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        740,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Authenticated Lead Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Consent and Prepare Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Consent and Prepare Task": {
+      "main": [
+        [
+          {
+            "node": "Confirm Accepted Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "all"
+  },
+  "versionId": "63789b60-38cd-4f04-a3ef-ffcc6e825a1c",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
