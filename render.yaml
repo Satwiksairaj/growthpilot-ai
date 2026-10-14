@@ -56,7 +56,8 @@ services:
       - key: N8N_BLOCK_ENV_ACCESS_IN_NODE
         value: "true"
 
-  - type: static
+  - type: web
+    runtime: static
     name: growthpilot-ai-web-satwiksairaj
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
