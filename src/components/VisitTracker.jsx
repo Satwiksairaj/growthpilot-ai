@@ -7,6 +7,8 @@ export default function VisitTracker() {
   const location = useLocation()
 
   useEffect(() => {
+    if (import.meta.env.VITE_FRONTEND_PREVIEW === 'true') return
+
     trackVisit({
       visitor_id: getVisitorId(),
       path: location.pathname,

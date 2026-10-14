@@ -180,6 +180,7 @@ function formatRate(value, denominator) {
 }
 
 export default function Dashboard() {
+  const frontendPreview = import.meta.env.VITE_FRONTEND_PREVIEW === 'true'
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -189,6 +190,11 @@ export default function Dashboard() {
     let cancelled = false
 
     async function loadMetrics() {
+      if (frontendPreview) {
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
       setError(null)
 
@@ -222,7 +228,20 @@ export default function Dashboard() {
     return () => {
       cancelled = true
     }
-  }, [refreshKey])
+  }, [frontendPreview, refreshKey])
+
+  if (frontendPreview) {
+    return (
+      <div className="pt-8">
+        <Container>
+          <h2 className="mb-4 text-2xl font-semibold">Growth Dashboard</h2>
+          <Alert variant="info">
+            Frontend-only preview: live metrics are unavailable because this deployment does not include the API or its database.
+          </Alert>
+        </Container>
+      </div>
+    )
+  }
 
   if (loading) {
     return (

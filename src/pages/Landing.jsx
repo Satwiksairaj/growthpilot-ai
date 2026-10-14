@@ -4,6 +4,8 @@ import Container from '../components/Container'
 import Button from '../components/Button'
 
 export default function Landing(){
+  const frontendPreview = import.meta.env.VITE_FRONTEND_PREVIEW === 'true'
+
   return (
     <div className="pt-16">
       <Container>
@@ -15,7 +17,11 @@ export default function Landing(){
               <Link to="/assessment"><Button>Discover My Path</Button></Link>
               <Link to="/dashboard" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-blue-700 bg-blue-100 hover:bg-blue-200">View Dashboard</Link>
             </div>
-            <p className="mt-4 text-xs text-gray-500">Development build. Dashboard metrics reflect local events recorded by this instance.</p>
+            <p className="mt-4 text-xs text-gray-500">
+              {frontendPreview
+                ? 'Frontend-only preview. Assessment reports, live metrics, and automation require the separately hosted backend.'
+                : 'Development build. Dashboard metrics reflect local events recorded by this instance.'}
+            </p>
           </section>
 
           <aside className="bg-white rounded-lg shadow-md p-6">

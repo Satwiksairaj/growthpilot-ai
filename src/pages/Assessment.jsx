@@ -17,6 +17,7 @@ const initial = {
 }
 
 export default function Assessment(){
+  const frontendPreview = import.meta.env.VITE_FRONTEND_PREVIEW === 'true'
   const [form, setForm] = useState(initial)
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
@@ -77,6 +78,12 @@ export default function Assessment(){
           <h2 className="text-2xl font-semibold">Student Assessment</h2>
           <p className="text-sm text-gray-600 mt-1">Answer a few questions to generate a recommended technology path.</p>
 
+          {frontendPreview && (
+            <Alert variant="info">
+              Frontend-only preview: assessment reports, saving, and lead automation are unavailable until the backend is deployed.
+            </Alert>
+          )}
+
           <form className="mt-6" onSubmit={handleSubmit} noValidate>
             <FormField label="Technology interests" id="interests" required>
               <select id="interests" value={form.interests} onChange={e=>setForm({...form, interests:e.target.value})} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" aria-invalid={Boolean(errors.interests)}>
@@ -132,7 +139,7 @@ export default function Assessment(){
             </div>
 
             <div className="flex items-center gap-3">
-              <Button type="submit" disabled={loading}>{loading ? <Loading label="Submitting..." /> : 'Get My Report'}</Button>
+              <Button type="submit" disabled={loading || frontendPreview}>{loading ? <Loading label="Submitting..." /> : 'Get My Report'}</Button>
               <button type="button" className="text-sm text-gray-600 underline" onClick={()=>{setForm(initial); setErrors({}); setResult(null); setApiError(null)}}>Reset</button>
             </div>
           </form>

@@ -51,6 +51,7 @@ describe('Assessment page', () => {
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()
+    vi.unstubAllEnvs()
   })
 
   it('submits assessment and renders the structured report', async () => {
@@ -89,6 +90,15 @@ describe('Assessment page', () => {
 
     expect(await screen.findByText('Consent is required to capture lead information.')).toBeInTheDocument()
     expect(submitAssessment).not.toHaveBeenCalled()
+  })
+
+  it('disables API-dependent submission in a frontend-only preview', () => {
+    vi.stubEnv('VITE_FRONTEND_PREVIEW', 'true')
+    renderAssessment()
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/Frontend-only preview/)
+    expect(screen.getByRole('button', { name: 'Get My Report' })).toBeDisabled()
+    expect(trackVisit).not.toHaveBeenCalled()
   })
 
   it('shows backend errors without presenting a successful report', async () => {

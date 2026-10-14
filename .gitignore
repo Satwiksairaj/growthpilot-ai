@@ -6,5 +6,6 @@ __pycache__/
 .env
 .env.*
 !.env.example
+!.env.production
 backend/growthpilot.db
 .vercel

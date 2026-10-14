@@ -22,6 +22,7 @@ describe('Dashboard page', () => {
   afterEach(() => {
     cleanup()
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
   })
 
   it('shows an explicit empty state when there are no live events', async () => {
@@ -106,6 +107,14 @@ describe('Dashboard page', () => {
     expect(screen.getByText('2 / 4 linked records')).toBeInTheDocument()
     expect(screen.getByText('1 / 2 linked records')).toBeInTheDocument()
     expect(screen.getByText(/not NIAT’s official qualification rule/)).toBeInTheDocument()
+  })
+
+  it('shows an explicit notice instead of requesting missing preview metrics', () => {
+    vi.stubEnv('VITE_FRONTEND_PREVIEW', 'true')
+    render(<Dashboard />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/does not include the API or its database/)
+    expect(fetchMetrics).not.toHaveBeenCalled()
   })
 
   it('shows a retryable error when the API request fails', async () => {

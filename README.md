@@ -155,6 +155,10 @@ The root `render.yaml` defines a static frontend, a persistent API service, and 
 
 After the services are deployed, open the n8n editor, create an HTTP Header Auth credential named `GrowthPilot Shared Secret` with header `Authorization` and the generated shared secret, import `n8n/growthpilot-consented-lead.json`, select that credential on the webhook, and activate the workflow. Confirm the backend health endpoint reports n8n configured and submit a consented test lead before treating hosted automation as live. Use synthetic data until privacy, retention, access-control, and monitoring policies are approved.
 
+### Vercel frontend preview
+
+The production Vercel build is explicitly frontend-only (`.env.production`). It displays a notice, disables assessment submission, skips visit tracking, and does not request live dashboard metrics. The API, persistent database, Gemini-backed reports, and n8n automation must be deployed separately before public users can use those features. Remove the preview flag and configure `VITE_API_BASE_URL` only after a persistent backend is deployed and verified.
+
 ## Submission materials
 
 - [Research audit](./submission/research-audit.md)
