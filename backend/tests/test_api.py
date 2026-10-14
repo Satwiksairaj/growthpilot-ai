@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -62,6 +63,58 @@ class ApiTests(unittest.TestCase):
             webhook_url,
             "https://growthpilot-ai-n8n.onrender.com/webhook/growthpilot/consented-lead",
         )
+
+    def test_postgres_connection_translates_parameters_and_returns_mapping_rows(
+        self,
+    ) -> None:
+        class FakeCursor:
+            def fetchone(self):
+                return {"event_id": "event-1", "status": "pending"}
+
+            def fetchall(self):
+                return [{"event_id": "event-1", "status": "pending"}]
+
+        class FakeConnection:
+            def execute(self, statement, parameters):
+                self.statement = statement
+                self.parameters = parameters
+                return FakeCursor()
+
+        fake_connection = FakeConnection()
+        errors = SimpleNamespace(
+            IntegrityError=type("IntegrityError", (Exception,), {}),
+            Error=Exception,
+        )
+        connection = main.PostgresConnection(fake_connection, errors)
+
+        cursor = connection.execute(
+            "SELECT event_id, status FROM events WHERE event_id = ?",
+            ("event-1",),
+        )
+        row = cursor.fetchone()
+
+        self.assertEqual(
+            fake_connection.statement,
+            "SELECT event_id, status FROM events WHERE event_id = %s",
+        )
+        self.assertEqual(fake_connection.parameters, ("event-1",))
+        self.assertEqual(row["status"], "pending")
+        self.assertEqual(row[0], "event-1")
+
+    def test_postgres_database_url_selects_psycopg_connection(self) -> None:
+        fake_connection = MagicMock()
+        with (
+            patch.object(main, "DATABASE_URL", "postgresql://example.test/database"),
+            patch("psycopg.connect", return_value=fake_connection) as connect,
+        ):
+            connection = main.connect_database()
+
+        self.assertIsInstance(connection, main.PostgresConnection)
+        self.assertEqual(
+            connect.call_args.kwargs["connect_timeout"],
+            10,
+        )
+        self.assertIsNotNone(connect.call_args.kwargs["row_factory"])
 
     @patch("app.main.generate_report", side_effect=rule_based_report)
     def test_assessment_returns_and_persists_rule_based_report(

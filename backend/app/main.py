@@ -25,6 +25,7 @@ from app.ai_reports import (
 
 DEFAULT_DATABASE_PATH = Path(__file__).resolve().parents[1] / "growthpilot.db"
 DATABASE_PATH = Path(os.getenv("GROWTHPILOT_DB_PATH", str(DEFAULT_DATABASE_PATH)))
+DATABASE_URL = os.getenv("DATABASE_URL")
 logger = logging.getLogger(__name__)
 
 Interest = Literal["web", "data", "mobile", "cloud", "uiux"]
@@ -78,7 +79,63 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def connect_database() -> sqlite3.Connection:
+class DatabaseRow(dict):
+    def __getitem__(self, key: str | int) -> object:
+        if isinstance(key, int):
+            return tuple(self.values())[key]
+        return super().__getitem__(key)
+
+
+class PostgresCursor:
+    def __init__(self, cursor: object) -> None:
+        self.cursor = cursor
+
+    def fetchone(self) -> DatabaseRow | None:
+        row = self.cursor.fetchone()
+        return DatabaseRow(row) if row is not None else None
+
+    def fetchall(self) -> list[DatabaseRow]:
+        return [DatabaseRow(row) for row in self.cursor.fetchall()]
+
+
+class PostgresConnection:
+    def __init__(self, connection: object, errors: object) -> None:
+        self.connection = connection
+        self.errors = errors
+
+    def execute(
+        self, statement: str, parameters: tuple[object, ...] = ()
+    ) -> PostgresCursor:
+        try:
+            cursor = self.connection.execute(statement.replace("?", "%s"), parameters)
+        except self.errors.IntegrityError as exc:
+            raise sqlite3.IntegrityError(str(exc)) from exc
+        except self.errors.Error as exc:
+            raise sqlite3.Error(str(exc)) from exc
+        return PostgresCursor(cursor)
+
+    def commit(self) -> None:
+        self.connection.commit()
+
+    def close(self) -> None:
+        self.connection.close()
+
+    def __enter__(self) -> "PostgresConnection":
+        self.connection.__enter__()
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> bool:
+        return self.connection.__exit__(exc_type, exc, traceback)
+
+
+def connect_database() -> sqlite3.Connection | PostgresConnection:
+    if DATABASE_URL:
+        import psycopg
+        from psycopg.rows import dict_row
+
+        connection = psycopg.connect(DATABASE_URL, row_factory=dict_row, connect_timeout=10)
+        return PostgresConnection(connection, psycopg.errors)
+
     DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(DATABASE_PATH, timeout=10)
     connection.row_factory = sqlite3.Row
@@ -87,6 +144,10 @@ def connect_database() -> sqlite3.Connection:
 
 
 def initialize_database() -> None:
+    if DATABASE_URL:
+        initialize_postgres_database()
+        return
+
     with closing(connect_database()) as connection:
         connection.executescript(
             """
@@ -174,6 +235,77 @@ def initialize_database() -> None:
             (utc_now(),),
         )
         connection.commit()
+
+
+def initialize_postgres_database() -> None:
+    schema = """
+        CREATE TABLE IF NOT EXISTS visitors (
+            visitor_id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,
+            first_seen_at TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS page_views (
+            visitor_id TEXT NOT NULL REFERENCES visitors(visitor_id),
+            path TEXT NOT NULL,
+            visited_at TEXT NOT NULL,
+            PRIMARY KEY (visitor_id, path)
+        );
+        CREATE TABLE IF NOT EXISTS assessments (
+            assessment_id TEXT PRIMARY KEY,
+            visitor_id TEXT REFERENCES visitors(visitor_id),
+            interests TEXT NOT NULL,
+            coding_experience TEXT NOT NULL,
+            education_stage TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            report_json TEXT,
+            report_generation_mode TEXT,
+            report_status TEXT NOT NULL DEFAULT 'generated',
+            idempotency_key TEXT
+        );
+        CREATE TABLE IF NOT EXISTS leads (
+            lead_id TEXT PRIMARY KEY,
+            assessment_id TEXT NOT NULL UNIQUE REFERENCES assessments(assessment_id),
+            name TEXT,
+            email TEXT,
+            consented_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS lead_automation_events (
+            event_id TEXT PRIMARY KEY,
+            lead_id TEXT NOT NULL UNIQUE REFERENCES leads(lead_id),
+            status TEXT NOT NULL,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS app_metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        ALTER TABLE assessments ADD COLUMN IF NOT EXISTS visitor_id TEXT
+            REFERENCES visitors(visitor_id);
+        ALTER TABLE assessments ADD COLUMN IF NOT EXISTS report_json TEXT;
+        ALTER TABLE assessments ADD COLUMN IF NOT EXISTS report_generation_mode TEXT;
+        ALTER TABLE assessments ADD COLUMN IF NOT EXISTS report_status TEXT
+            NOT NULL DEFAULT 'generated';
+        ALTER TABLE assessments ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_assessments_idempotency_key
+            ON assessments(idempotency_key) WHERE idempotency_key IS NOT NULL;
+    """
+    with closing(connect_database()) as connection:
+        with connection:
+            for statement in schema.split(";"):
+                if statement.strip():
+                    connection.execute(statement)
+            connection.execute(
+                """
+                INSERT INTO app_metadata (key, value)
+                VALUES ('linked_analytics_since', ?)
+                ON CONFLICT (key) DO NOTHING
+                """,
+                (utc_now(),),
+            )
 
 
 INTEREST_LABELS = {
