@@ -60,19 +60,3 @@ services:
         value: "false"
       - key: N8N_BLOCK_ENV_ACCESS_IN_NODE
         value: "true"
-
-  - type: web
-    runtime: static
-    name: growthpilot-ai-web-satwiksairaj
-    buildCommand: npm ci && npm run build
-    staticPublishPath: ./dist
-    envVars:
-      - key: VITE_API_BASE_URL
-        fromService:
-          type: web
-          name: growthpilot-ai-api-satwiksairaj
-          property: host
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
