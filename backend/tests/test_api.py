@@ -47,6 +47,15 @@ class ApiTests(unittest.TestCase):
         self.assertFalse(response.json()["configuration"]["gemini_configured"])
         self.assertNotIn("GEMINI_API_KEY", json.dumps(response.json()))
 
+    def test_health_reports_postgres_without_exposing_connection_string(self) -> None:
+        database_url = "postgresql://test-user:test-password@example.test/growthpilot"
+        with patch.object(main, "DATABASE_URL", database_url):
+            response = self.client.get("/api/health")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["configuration"]["database"], "postgresql")
+        self.assertNotIn("test-password", response.text)
+
     def test_health_supports_render_n8n_service_reference(self) -> None:
         with patch.dict(
             os.environ,
@@ -210,6 +219,33 @@ class ApiTests(unittest.TestCase):
         with closing(main.connect_database()) as connection:
             self.assertEqual(connection.execute("SELECT COUNT(*) FROM leads").fetchone()[0], 0)
 
+    def test_invalid_lead_submissions_create_no_assessment_or_lead(self) -> None:
+        invalid_leads = [
+            {"email": "student@example.com", "consent": False},
+            {"email": "not-an-email", "consent": True},
+            {"name": "   ", "email": " ", "consent": True},
+        ]
+
+        with patch("app.main.generate_report", side_effect=rule_based_report) as generator:
+            for lead in invalid_leads:
+                with self.subTest(lead=lead):
+                    response = self.client.post(
+                        "/api/assessments",
+                        json={**self.payload, "lead": lead},
+                    )
+                    self.assertEqual(response.status_code, 422)
+
+        generator.assert_not_called()
+        with closing(main.connect_database()) as connection:
+            self.assertEqual(
+                connection.execute("SELECT COUNT(*) FROM assessments").fetchone()[0],
+                0,
+            )
+            self.assertEqual(
+                connection.execute("SELECT COUNT(*) FROM leads").fetchone()[0],
+                0,
+            )
+
     @patch("app.main.generate_report", side_effect=rule_based_report)
     def test_idempotency_key_prevents_duplicate_assessment_and_lead(
         self, _generator: MagicMock
@@ -292,6 +328,90 @@ class ApiTests(unittest.TestCase):
         self.assertNotIn("student@example.com", json.dumps(request.kwargs["json"]))
         main.dispatch_n8n_event(event_id)
         self.assertEqual(http_client.post.call_count, 1)
+
+    @patch.dict(
+        os.environ,
+        {
+            "N8N_WEBHOOK_URL": "https://n8n.example.test/webhook/test",
+            "N8N_WEBHOOK_SECRET": "server-only-test-secret",
+        },
+    )
+    @patch("app.main.httpx.Client")
+    @patch("app.main.generate_report", side_effect=rule_based_report)
+    def test_assessment_to_consented_lead_updates_database_webhook_and_metrics(
+        self,
+        _generator: MagicMock,
+        client_factory: MagicMock,
+    ) -> None:
+        visitor_id = str(uuid4())
+        self.client.post(
+            "/api/visits",
+            json={
+                "visitor_id": visitor_id,
+                "path": "/assessment",
+                "source": "organic",
+            },
+        )
+        http_client = client_factory.return_value.__enter__.return_value
+
+        def confirm_event(*_args, **kwargs):
+            confirmation = MagicMock()
+            confirmation.json.return_value = {
+                "accepted": True,
+                "event_id": kwargs["json"]["event_id"],
+            }
+            return confirmation
+
+        http_client.post.side_effect = confirm_event
+        response = self.client.post(
+            "/api/assessments",
+            json={
+                **self.payload,
+                "visitor_id": visitor_id,
+                "lead": {
+                    "name": "Integration Test Student",
+                    "email": "integration@example.test",
+                    "consent": True,
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        result = response.json()
+        self.assertEqual(result["report"]["generation_mode"], "rule-based-development")
+        self.assertEqual(result["automation"]["status"], "succeeded")
+        webhook_request = http_client.post.call_args
+        self.assertEqual(
+            webhook_request.args[0],
+            "https://n8n.example.test/webhook/test",
+        )
+        self.assertTrue(webhook_request.kwargs["json"]["consent"])
+        self.assertNotIn(
+            "integration@example.test",
+            json.dumps(webhook_request.kwargs["json"]),
+        )
+
+        with closing(main.connect_database()) as connection:
+            assessment = connection.execute(
+                """
+                SELECT a.report_json, l.email, l.consented_at, e.status
+                FROM assessments a
+                JOIN leads l ON l.assessment_id = a.assessment_id
+                JOIN lead_automation_events e ON e.lead_id = l.lead_id
+                WHERE a.assessment_id = ?
+                """,
+                (result["assessment_id"],),
+            ).fetchone()
+        self.assertEqual(assessment["email"], "integration@example.test")
+        self.assertTrue(assessment["consented_at"])
+        self.assertEqual(assessment["status"], "succeeded")
+        self.assertIsNotNone(assessment["report_json"])
+
+        metrics = self.client.get("/api/metrics").json()
+        self.assertEqual(metrics["metrics"]["submissions"], 1)
+        self.assertEqual(metrics["metrics"]["reports"], 1)
+        self.assertEqual(metrics["metrics"]["leads"], 1)
+        self.assertEqual(metrics["automation"]["statuses"], {"succeeded": 1})
 
     @patch("app.main.generate_report", side_effect=rule_based_report)
     def test_conversion_rates_use_documented_funnel_denominators(
@@ -420,6 +540,84 @@ class ApiTests(unittest.TestCase):
         self.assertNotIn("student@example.com", json.dumps(request_kwargs["json"]))
         with closing(main.connect_database()) as connection:
             self.assertEqual(connection.execute("SELECT COUNT(*) FROM leads").fetchone()[0], 1)
+            event = connection.execute(
+                "SELECT status, attempts FROM lead_automation_events"
+            ).fetchone()
+        self.assertEqual(event["status"], "failed")
+        self.assertEqual(event["attempts"], 2)
+
+    @patch.dict(
+        os.environ,
+        {
+            "N8N_WEBHOOK_URL": "https://n8n.example.test/webhook/test",
+            "N8N_WEBHOOK_SECRET": "server-only-test-secret",
+        },
+    )
+    @patch("app.main.httpx.Client")
+    @patch("app.main.generate_report", side_effect=rule_based_report)
+    def test_n8n_mismatched_acknowledgement_is_not_reported_as_success(
+        self,
+        _generator: MagicMock,
+        client_factory: MagicMock,
+    ) -> None:
+        http_client = client_factory.return_value.__enter__.return_value
+        http_client.post.return_value.json.return_value = {
+            "accepted": True,
+            "event_id": "00000000-0000-4000-8000-000000000000",
+        }
+        response = self.client.post(
+            "/api/assessments",
+            json={
+                **self.payload,
+                "lead": {"email": "test-student@example.test", "consent": True},
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["automation"]["status"], "failed")
+        self.assertEqual(http_client.post.call_count, 2)
+        with closing(main.connect_database()) as connection:
+            event = connection.execute(
+                "SELECT status, attempts FROM lead_automation_events"
+            ).fetchone()
+        self.assertEqual(event["status"], "failed")
+        self.assertEqual(event["attempts"], 2)
+
+    @patch.dict(
+        os.environ,
+        {
+            "N8N_WEBHOOK_URL": "https://n8n.example.test/webhook/inactive",
+            "N8N_WEBHOOK_SECRET": "server-only-test-secret",
+        },
+    )
+    @patch("app.main.httpx.Client")
+    @patch("app.main.generate_report", side_effect=rule_based_report)
+    def test_inactive_n8n_webhook_404_does_not_claim_delivery_success(
+        self,
+        _generator: MagicMock,
+        client_factory: MagicMock,
+    ) -> None:
+        request = httpx.Request("POST", "https://n8n.example.test/webhook/inactive")
+        response_404 = httpx.Response(404, request=request)
+        client_factory.return_value.__enter__.return_value.post.return_value = (
+            response_404
+        )
+
+        response = self.client.post(
+            "/api/assessments",
+            json={
+                **self.payload,
+                "lead": {"email": "test-student@example.test", "consent": True},
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["automation"]["status"], "failed")
+        self.assertEqual(
+            client_factory.return_value.__enter__.return_value.post.call_count,
+            2,
+        )
+        with closing(main.connect_database()) as connection:
             event = connection.execute(
                 "SELECT status, attempts FROM lead_automation_events"
             ).fetchone()

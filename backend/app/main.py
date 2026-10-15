@@ -408,7 +408,7 @@ def health() -> dict[str, object]:
             "n8n_configured": bool(
                 n8n_webhook_url() and os.getenv("N8N_WEBHOOK_SECRET")
             ),
-            "database": "sqlite",
+            "database": "postgresql" if DATABASE_URL else "sqlite",
         },
     }
 
