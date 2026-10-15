@@ -468,7 +468,7 @@ export default function Dashboard() {
         <p className="mt-5 text-xs text-gray-500">
           Data mode:{' '}
           {data.mode === 'live'
-            ? 'live local measurements (development only)'
+            ? 'live service measurements'
             : 'unknown'}.
           {' '}Linked conversion rates cover tracked activity since {data.tracking_since || 'tracking was enabled'}; older records are excluded.
           {' '}Qualified leads use the labeled demo proxy above, not official admissions criteria.
