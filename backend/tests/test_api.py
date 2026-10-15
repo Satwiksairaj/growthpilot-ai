@@ -64,6 +64,21 @@ class ApiTests(unittest.TestCase):
             "https://growthpilot-ai-n8n.onrender.com/webhook/growthpilot/consented-lead",
         )
 
+    def test_metrics_reports_automation_configured_from_render_service_reference(
+        self,
+    ) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "N8N_BASE_URL": "growthpilot-ai-n8n.onrender.com",
+                "N8N_WEBHOOK_SECRET": "test-webhook-secret",
+            },
+        ):
+            metrics = self.client.get("/api/metrics").json()
+
+        self.assertTrue(metrics["automation"]["configured"])
+        self.assertIn("temporary SQLite database", metrics["note"])
+
     def test_postgres_connection_translates_parameters_and_returns_mapping_rows(
         self,
     ) -> None:

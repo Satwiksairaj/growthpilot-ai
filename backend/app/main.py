@@ -828,7 +828,8 @@ def get_metrics() -> dict[str, object]:
     return {
         "mode": "live",
         "note": (
-            "Live local development measurements from SQLite; not production analytics. "
+            "Live measurements from this service's temporary SQLite database; data may "
+            "be lost on restart or redeploy. "
             f"Linked conversion rates include tracked activity since {tracking_since[:10]}."
         ),
         "tracking_since": tracking_since[:10],
@@ -875,9 +876,7 @@ def get_metrics() -> dict[str, object]:
         },
         "sources": source_breakdown,
         "automation": {
-            "configured": bool(
-                os.getenv("N8N_WEBHOOK_URL") and os.getenv("N8N_WEBHOOK_SECRET")
-            ),
+            "configured": bool(n8n_webhook_url() and os.getenv("N8N_WEBHOOK_SECRET")),
             "statuses": automation_counts,
         },
         "funnel": [

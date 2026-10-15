@@ -18,7 +18,7 @@ export default function App(){
           <Route path="/dashboard" element={<Dashboard />} />
         </Routes>
       </main>
-      <footer className="text-center text-sm text-gray-500 py-6">GrowthPilot AI — Development build</footer>
+      <footer className="text-center text-sm text-gray-500 py-6">GrowthPilot AI</footer>
     </div>
   )
 }

@@ -20,7 +20,7 @@ export default function Landing(){
             <p className="mt-4 text-xs text-gray-500">
               {frontendPreview
                 ? 'Frontend-only preview. Assessment reports, live metrics, and automation require the separately hosted backend.'
-                : 'Development build. Dashboard metrics reflect local events recorded by this instance.'}
+                : 'Connected to the hosted API for assessments, analytics, and lead follow-up.'}
             </p>
           </section>
 

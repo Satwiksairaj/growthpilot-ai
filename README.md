@@ -1,8 +1,8 @@
 # GrowthPilot AI
 
-GrowthPilot AI is a development-stage student acquisition and growth analytics application for exploring technology pathways. It combines a React frontend, FastAPI backend, SQLite persistence, optional Google Gemini report generation, and an optional n8n lead-follow-up workflow.
+GrowthPilot AI is a student acquisition and growth analytics demo for exploring technology pathways. It combines a React frontend, FastAPI backend, SQLite persistence, optional Google Gemini report generation, and an n8n lead-follow-up workflow.
 
-> This is a development project, not a production-ready student information system. Dashboard counts are local development measurements; reports are labeled rule-based unless a configured Gemini request succeeds. No live Gemini, n8n, or production deployment is claimed as verified.
+> The app is deployed as a demo, not a production-ready student information system. The hosted services currently use temporary SQLite storage, so data may be lost on restart or redeploy. Reports use the labeled rule-based fallback unless a configured Gemini request succeeds. Do not enter real student or lead data.
 
 ## Features
 
