@@ -88,6 +88,16 @@ class ApiTests(unittest.TestCase):
         self.assertTrue(metrics["automation"]["configured"])
         self.assertIn("temporary SQLite database", metrics["note"])
 
+    def test_metrics_note_reflects_postgres_configuration_without_secrets(self) -> None:
+        with patch.object(
+            main, "DATABASE_URL", "postgresql://user:password@example.test/growthpilot"
+        ):
+            note = main.metrics_note("2026-10-15T00:00:00+00:00")
+
+        self.assertIn("configured PostgreSQL database", note)
+        self.assertIn("Availability and backups depend on the database provider", note)
+        self.assertNotIn("password", note)
+
     def test_postgres_connection_translates_parameters_and_returns_mapping_rows(
         self,
     ) -> None:

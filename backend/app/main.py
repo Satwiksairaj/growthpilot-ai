@@ -79,6 +79,23 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def metrics_note(tracking_since: str) -> str:
+    if DATABASE_URL:
+        storage_note = (
+            "Live measurements from the configured PostgreSQL database. "
+            "Availability and backups depend on the database provider and plan. "
+        )
+    else:
+        storage_note = (
+            "Live measurements from this service's temporary SQLite database; data may "
+            "be lost on restart or redeploy. "
+        )
+    return (
+        f"{storage_note}Linked conversion rates include tracked activity since "
+        f"{tracking_since[:10]}."
+    )
+
+
 class DatabaseRow(dict):
     def __getitem__(self, key: str | int) -> object:
         if isinstance(key, int):
@@ -827,11 +844,7 @@ def get_metrics() -> dict[str, object]:
     automation_counts = {row["status"]: row["count"] for row in automation_rows}
     return {
         "mode": "live",
-        "note": (
-            "Live measurements from this service's temporary SQLite database; data may "
-            "be lost on restart or redeploy. "
-            f"Linked conversion rates include tracked activity since {tracking_since[:10]}."
-        ),
+        "note": metrics_note(tracking_since),
         "tracking_since": tracking_since[:10],
         "metrics": {
             "visitors": visitors,

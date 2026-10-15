@@ -330,7 +330,7 @@ export default function Dashboard() {
           <Alert variant="info">
             No live analytics events have been recorded yet.
             Browse the assessment and submit a report to populate
-            this development dashboard.
+            this dashboard.
           </Alert>
         )}
 

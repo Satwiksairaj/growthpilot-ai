@@ -55,6 +55,7 @@ describe('Dashboard page', () => {
     render(<Dashboard />)
 
     expect(await screen.findByText(/No live analytics events have been recorded yet/)).toBeInTheDocument()
+    expect(screen.queryByText(/development dashboard/i)).not.toBeInTheDocument()
     const qualifiedMetric = screen.getByText('Qualified leads (demo proxy)').parentElement
     expect(within(qualifiedMetric).getByText('0')).toBeInTheDocument()
     expect(screen.getAllByText('Awaiting data')).toHaveLength(3)
